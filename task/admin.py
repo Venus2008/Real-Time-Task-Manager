@@ -16,7 +16,7 @@ class TaskAdmin(admin.ModelAdmin):
     # Organize fields in edit page
     fieldsets = (
         ("Task Info", {
-            "fields": ("title", "description", "status", "priority", "file")
+            "fields": ("title", "description", "status", "priority", "file","is_archived")
         }),
         ("Relations", {
             "fields": ("created_by", "assigned_to")
@@ -24,6 +24,7 @@ class TaskAdmin(admin.ModelAdmin):
         ("Timestamps", {
             "fields": ("created_at", "updated_at"),
             "classes": ("collapse",),  # hide by default
+
         }),
     )
 
