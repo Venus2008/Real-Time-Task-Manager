@@ -3,7 +3,7 @@ from account.models import User
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 
 class UserAdmin(BaseUserAdmin):
-    list_display = ( "name", "email", "role", "is_staff", "is_active")
+    list_display = ( "id","name", "email", "role", "is_staff", "is_active")
     list_filter = ("role", "is_staff", "is_active")
 
     fieldsets = (
