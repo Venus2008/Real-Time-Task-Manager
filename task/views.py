@@ -78,6 +78,20 @@ class TaskListCreateView(APIView):
             CanAssignTask().validate_assignment(request.user, assignee)
 
             task = serializer.save(created_by=user)
+
+            # Send WebSocket notification
+            channel_layer = get_channel_layer()
+            async_to_sync(channel_layer.group_send)(
+                f"notifications_{assignee.id}",  # matches your consumer's room name
+                {
+                    "type": "send_notification",  # must match consumer method
+                    "event": "task_assigned",
+                    "task_id": task.id,
+                    "title": task.title,
+                    "assigned_to": assignee.email,
+                    "message": f"Task '{task.title}' has been assigned to you",
+                }
+            )
             return Response(serializer.data, status=status.HTTP_201_CREATED)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -120,7 +134,25 @@ class TaskDetailView(APIView):
         serializer = TaskSerializer(task, data=request.data, partial=True)
 
         if serializer.is_valid():
-            serializer.validated_data.get("assigned_to")                                           # as per rule or not while modifying
+            serializer.validated_data.get("assigned_to")    # as per rule or not while modifying
+            serializer.save()  
+                # Example: notify the assignee or creator if status changed
+            if 'status' in serializer.validated_data:
+                new_status = serializer.validated_data['status']
+                assignee = task.assigned_to
+
+                channel_layer = get_channel_layer()
+                async_to_sync(channel_layer.group_send)(
+                    f"notifications_{assignee.id}",
+                    {
+                        "type": "send_notification",
+                        "event": "status_changed",
+                        "task_id": task.id,
+                        "title": task.title,
+                        "new_status": new_status,
+                        "message": f"Task '{task.title}' status changed to {new_status}",
+                    }
+                )                                         
                                                   
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
