@@ -3,12 +3,15 @@ from task.permissions import CanAssignTask,CanViewTask,CanEditTask
 from task.models import Task
 from task.helpers import TaskVisibilityHelper
 
+
 from rest_framework.views import APIView
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.exceptions import PermissionDenied
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
 
 
 
@@ -74,7 +77,7 @@ class TaskListCreateView(APIView):
             assignee = serializer.validated_data.get("assigned_to")
             CanAssignTask().validate_assignment(request.user, assignee)
 
-            serializer.save(created_by=user)
+            task = serializer.save(created_by=user)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -117,11 +120,7 @@ class TaskDetailView(APIView):
         serializer = TaskSerializer(task, data=request.data, partial=True)
 
         if serializer.is_valid():
-            assignee = serializer.validated_data.get("assigned_to")
-
-            if assignee is not None:
-                CanAssignTask().validate_assignment(request.user, assignee)  # Check to whom the task is assigning is valid -  
-            serializer.save()                                               # as per rule or not while modifying
+            serializer.validated_data.get("assigned_to")                                           # as per rule or not while modifying
                                                   
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
