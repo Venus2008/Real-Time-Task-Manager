@@ -31,10 +31,7 @@ class UserManager(BaseUserManager):
     
 class User(AbstractUser,BaseModel):
     username=None
-<<<<<<< Updated upstream
     name=models.CharField(max_length=100)
-=======
->>>>>>> Stashed changes
     email=models.EmailField(unique=True)
     name=models.CharField(max_length=100)
     role=models.CharField(choices=ROLE_CHOICES,max_length=20,default='EMPLOYEE')
