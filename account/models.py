@@ -1,5 +1,6 @@
 from django.db import models
-from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
+from django.contrib.auth.models import AbstractUser, BaseUserManager
+from Backend.models import BaseModel
 
 ROLE_CHOICES = (
     ('ADMIN', 'ADMIN'),
@@ -28,13 +29,12 @@ class UserManager(BaseUserManager):
             raise ValueError("Superuser must have is_superuser=True.")
         return self.create_user(email,password,**extra_fields)  
     
-class User(AbstractBaseUser,PermissionsMixin):
+class User(AbstractUser,BaseModel):
+    username=None
     name=models.CharField(max_length=100)
     email=models.EmailField(unique=True)
     role=models.CharField(choices=ROLE_CHOICES,max_length=20,default='EMPLOYEE')
-    is_active = models.BooleanField(default=False)
-    is_staff = models.BooleanField(default=False)
-    created_by = models.ForeignKey("self",on_delete=models.SET_NULL,null=True,blank=True,related_name="created_users")
+    
 
     
     objects=UserManager()
