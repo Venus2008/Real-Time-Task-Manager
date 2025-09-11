@@ -1,7 +1,7 @@
 from task.serializers import TaskSerializer,TaskUpdateSerializer
 from task.permissions import CanAssignTask,CanViewTask,CanEditTask
 from task.models import Task
-from task.helpers import TaskVisibilityHelper
+from django.db.models import Q
 
 
 from rest_framework.views import APIView
@@ -64,7 +64,25 @@ class TaskListCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        tasks = TaskVisibilityHelper.get_visible_tasks(request.user)
+        user = request.user  
+
+        if user.role == "ADMIN":
+            tasks = Task.objects.all().order_by("-created_at")
+
+        elif user.role == "MANAGER":
+            tasks = Task.objects.filter(
+                Q(created_by=user) | Q(assigned_to=user),
+                is_archived=False
+            ).order_by("-created_at")
+
+        elif user.role == "EMPLOYEE":
+            tasks = Task.objects.filter(
+                assigned_to=user,
+                is_archived=False
+            ).order_by("-created_at")
+
+        else:
+            tasks = Task.objects.none()
 
         serializer = TaskSerializer(tasks, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
