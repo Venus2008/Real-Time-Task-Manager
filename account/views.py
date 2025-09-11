@@ -17,11 +17,12 @@ from django.conf import settings
 from django.contrib.auth.tokens import default_token_generator
 from django.utils.http import urlsafe_base64_encode
 from django.utils.encoding import force_bytes
+from rest_framework.permissions import AllowAny
 
 
 
 
-class AddUserView(APIView):
+class CreateUserView(APIView):
     authentication_classes=[JWTAuthentication]
     permission_classes=[IsAdminOrManager]
 
@@ -107,7 +108,7 @@ class SetPasswordView(APIView):
 
 class AdminSignupView(APIView):
     authentication_classes = []  # No auth required for first admin signup
-    permission_classes = []      # Public for first time only
+    permission_classes = [AllowAny]      # Public for first time only
 
     def post(self, request):
         # Check if an admin already exists
@@ -144,7 +145,7 @@ class AdminSignupView(APIView):
 
 class LoginView(APIView):
     authentication_classes=[]
-    permission_classes=[]
+    permission_classes=[AllowAny]
 
     def post(self,request):
         email=request.data.get("email")
