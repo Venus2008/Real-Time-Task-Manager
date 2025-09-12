@@ -1,5 +1,5 @@
 from django.contrib import admin
-from task.models import Task,TaskUpdate
+from task.models import Task
 
 
 class TaskAdmin(admin.ModelAdmin):
@@ -37,24 +37,7 @@ class TaskAdmin(admin.ModelAdmin):
     # Optional: show nice dropdowns for relations
     autocomplete_fields = ("created_by", "assigned_to")
 
-class TaskUpdateAdmin(admin.ModelAdmin):
-    list_display = ("task", "updated_by", "status", "short_comment", "created_at")
-
-    list_filter = ("status", "created_at", "updated_by")
-    
-    search_fields = ("task__title", "updated_by__email", "comment")
-    
-    ordering = ("-created_at",)
-    
-    autocomplete_fields = ("task", "updated_by")
-    
-    date_hierarchy = "created_at"
-
-    def short_comment(self, obj):
-        """Show only first 40 chars of the comment"""
-        return (obj.comment[:20] + "...") if obj.comment and len(obj.comment) > 40 else obj.comment
-    short_comment.short_description = "Comment"
 
 
 admin.site.register(Task,TaskAdmin)
-admin.site.register(TaskUpdate,TaskUpdateAdmin)
+

@@ -15,10 +15,9 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.urls import path
-from task.views import TaskListCreateView,TaskModifyView,TaskUpdateView
+from task.views import TaskListCreateView,TaskModifyView
 
 urlpatterns = [
    path("",TaskListCreateView.as_view(),name="task-list-create"),
    path("<int:pk>/",TaskModifyView.as_view(),name="task-detail"),
-   path("updates/<int:task_id>/",TaskUpdateView.as_view(),name="task-update"),
 ]

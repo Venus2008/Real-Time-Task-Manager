@@ -16,9 +16,11 @@ Including another URLconf
 """
 
 from django.urls import path
-from notifications.views import NotificationListView,MarkReadView
+from notifications.views import NotificationListView,MarkReadView,ChatHistoryView,MessageView
 
 urlpatterns = [
     path("",NotificationListView.as_view(),name="notifications"),
     path('<int:pk>/',MarkReadView.as_view(),name="mark_read"),
+    path("chat/<int:task_id>/",ChatHistoryView.as_view(),name="chat_history"),
+    path("messages/", MessageView.as_view(), name="messages"),
     ]

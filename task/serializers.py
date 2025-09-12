@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from task.models import Task,TaskUpdate
+from task.models import Task
 
 class TaskSerializer(serializers.ModelSerializer):
     class Meta:
@@ -18,11 +18,3 @@ class TaskSerializer(serializers.ModelSerializer):
 
             return attrs
 
-class TaskUpdateSerializer(serializers.ModelSerializer):
-    updated_by = serializers.ReadOnlyField(source="updated_by.email")
-    task = serializers.PrimaryKeyRelatedField(read_only=True)
-    
-    class Meta:
-        model=TaskUpdate
-        fields="__all__"
-        read_only_fields=["id","updated_by","created_at"]
