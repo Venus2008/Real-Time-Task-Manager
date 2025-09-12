@@ -1,6 +1,9 @@
-import token
 from account.models import User
 from account.serializers import UserCreateSerializer,UserMeSerializer,SetPasswordSerializer,AdminSignupSerializer
+from account.utils import make_password_setup_link, decode_uid
+import token
+
+
 from django.contrib.auth import get_user_model
 from rest_framework import status
 from rest_framework.response import Response
@@ -9,8 +12,7 @@ from rest_framework_simplejwt.tokens import RefreshToken,TokenError
 from django.contrib.auth import authenticate
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
-from account.permissions import IsAdminOrManager,IsAdmin
-from .utils import make_password_setup_link, decode_uid
+from account.permissions import IsAdminOrManager
 User = get_user_model()
 from django.core.mail import send_mail
 from django.conf import settings

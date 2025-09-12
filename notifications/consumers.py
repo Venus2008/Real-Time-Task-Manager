@@ -33,6 +33,5 @@ class ChatConsumer(WebsocketConsumer):
         """
         try:
             self.send(text_data=json.dumps(event))
-            print(">>> Sending event:", event)
         except Exception as e:
             print(f"Error sending notification: {e}")

@@ -14,11 +14,11 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
-from django.urls import path,include
-from task.views import TaskListCreateView,TaskDetailView,TaskUpdateView
+from django.urls import path
+from task.views import TaskListCreateView,TaskModifyView,TaskUpdateView
 
 urlpatterns = [
    path("",TaskListCreateView.as_view(),name="task-list-create"),
-   path("<int:pk>/",TaskDetailView.as_view(),name="task-detail"),
+   path("<int:pk>/",TaskModifyView.as_view(),name="task-detail"),
    path("updates/<int:task_id>/",TaskUpdateView.as_view(),name="task-update"),
 ]

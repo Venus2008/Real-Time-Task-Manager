@@ -1,7 +1,10 @@
+from notifications.enums import NotificationType
 from task.serializers import TaskSerializer,TaskUpdateSerializer
 from task.permissions import CanAssignTask,CanViewTask,CanEditTask
 from task.models import Task
-from django.db.models import Q
+from notifications.models import Notification
+from notifications.enums import NotificationType
+
 
 
 from rest_framework.views import APIView
@@ -12,6 +15,9 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.exceptions import PermissionDenied
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
+from django.db.models import Q
+from django.db import transaction
+
 
 
 
@@ -38,6 +44,42 @@ class TaskUpdateView(APIView):
             if task_update.status:
                 task.status = task_update.status
                 task.save(update_fields=["status"])
+
+            # Notify the task creator about the update
+            recipients = [task.created_by, task.assigned_to]
+            recipients = [u for u in recipients if u and u != request.user]  # avoid self-notify
+
+            notifications = []
+            for user in recipients:
+                notif = Notification.objects.create(
+                    user=user,
+                    event=NotificationType.TASK_UPDATED,
+                    task=task,
+                    message=f"Task '{task.title}' was updated by {request.user.name}",
+                    created_by=request.user
+                )
+                notifications.append((user, notif))
+
+            # WebSocket push after commit
+            channel_layer = get_channel_layer()
+
+            def _send():
+                for user, notif in notifications:
+                    async_to_sync(channel_layer.group_send)(
+                        f"notifications_{user.id}",
+                        {
+                            "type": "send_notification",
+                            "notification_id": notif.id,
+                            "event": notif.event,
+                            "task_id": task.id,
+                            "title": task.title,
+                            "message": notif.message,
+                            "updated_by": request.user.email,
+                            "created_at": notif.created_at.isoformat(),
+                        }
+                    )
+
+            transaction.on_commit(_send)
                 
             return Response(serializer.data, status=status.HTTP_201_CREATED)
 
@@ -60,6 +102,7 @@ class TaskUpdateView(APIView):
 
 # Admin/Manager : Create and vier tasks
 class TaskListCreateView(APIView):
+    
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
 
@@ -97,26 +140,40 @@ class TaskListCreateView(APIView):
 
             task = serializer.save(created_by=user)
 
+            notification = Notification.objects.create(
+                user=assignee,
+                event=NotificationType.TASK_ASSIGNED,
+                task=task,
+                message=f"Task '{task.title}' has been assigned to you",
+                created_by=request.user
+            )
+
             # Send WebSocket notification
             channel_layer = get_channel_layer()
-            async_to_sync(channel_layer.group_send)(
-                f"notifications_{assignee.id}",  # matches your consumer's room name
-                {
-                    "type": "send_notification",  # must match consumer method
-                    "event": "task_assigned",
-                    "task_id": task.id,
-                    "title": task.title,
-                    "assigned_to": assignee.email,
-                    "message": f"Task '{task.title}' has been assigned to you",
-                }
-            )
+                # Ensure the notification is sent after the transaction commits
+            def _send():
+                async_to_sync(channel_layer.group_send)(
+                    f"notifications_{assignee.id}",  # matches your consumer's group
+                    {
+                        "type": "send_notification",  # must match consumer method
+                        "notification_id": notification.id,
+                        "event": notification.event,
+                        "task_id": task.id,
+                        "title": task.title,
+                        "assigned_to": assignee.email,
+                        "message": notification.message,
+                        "created_at": notification.created_at.isoformat(),
+                    }
+                )
+
+            transaction.on_commit(_send)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 # Admin/Manager : Modify and Delete the task role based permissions
-class TaskDetailView(APIView):
+class TaskModifyView(APIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
 
@@ -152,27 +209,55 @@ class TaskDetailView(APIView):
         serializer = TaskSerializer(task, data=request.data, partial=True)
 
         if serializer.is_valid():
-            serializer.validated_data.get("assigned_to")    # as per rule or not while modifying
-            serializer.save()  
-                # Example: notify the assignee or creator if status changed
-            if 'status' in serializer.validated_data:
-                new_status = serializer.validated_data['status']
-                assignee = task.assigned_to
+        # Save old values before updating
+            old_values = {field: getattr(task, field, None) for field in serializer.validated_data.keys()}
 
-                channel_layer = get_channel_layer()
-                async_to_sync(channel_layer.group_send)(
-                    f"notifications_{assignee.id}",
-                    {
-                        "type": "send_notification",
-                        "event": "status_changed",
-                        "task_id": task.id,
-                        "title": task.title,
-                        "new_status": new_status,
-                        "message": f"Task '{task.title}' status changed to {new_status}",
-                    }
-                )                                         
-                                                  
+            # Save updated task
+            updated_task = serializer.save()
+
+            updated_fields = []
+            for field, new_value in serializer.validated_data.items():
+                old_value = old_values.get(field)
+                if old_value != new_value:
+                    updated_fields.append((field, old_value, new_value))
+
+            # Send notifications
+            channel_layer = get_channel_layer()
+
+            for field, old_value, new_value in updated_fields:
+                if field == "assigned_to":
+                    # Notify the NEW assignee only
+                    if new_value:
+                        async_to_sync(channel_layer.group_send)(
+                            f"notifications_{new_value.id}",
+                            {
+                                "type": "send_notification",
+                                "event": "task_assigned",
+                                "task_id": updated_task.id,
+                                "title": updated_task.title,
+                                "message": f"You have been assigned task '{updated_task.title}'",
+                            }
+                        )
+                else:
+                    # Notify the current assignee for other field updates
+                    assignee = updated_task.assigned_to
+                    if assignee:
+                        async_to_sync(channel_layer.group_send)(
+                            f"notifications_{assignee.id}",
+                            {
+                                "type": "send_notification",
+                                "event": "task_updated",
+                                "task_id": updated_task.id,
+                                "title": updated_task.title,
+                                "field": field,
+                                "old_value": str(old_value),
+                                "new_value": str(new_value),
+                                "message": f"Task '{updated_task.title}' → {field} changed from '{old_value}' to '{new_value}'",
+                            }
+                        )
+
             return Response(serializer.data, status=status.HTTP_200_OK)
+
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, pk):

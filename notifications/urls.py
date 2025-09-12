@@ -16,6 +16,9 @@ Including another URLconf
 """
 
 from django.urls import path
+from notifications.views import NotificationListView,MarkReadView
 
 urlpatterns = [
+    path("",NotificationListView.as_view(),name="notifications"),
+    path('<int:pk>/',MarkReadView.as_view(),name="mark_read"),
     ]

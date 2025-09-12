@@ -3,10 +3,11 @@ from django.conf import settings
 from Backend.models import BaseModel
 from task.models import Task
 from task.enums import StatusChoice
+from notifications.enums import NotificationType
 
 class Notification(BaseModel,models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="notifications")
-    event = models.CharField(max_length=100)
+    event = models.CharField(choices=NotificationType.choices,max_length=20,null=True,blank=True)
     task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name="notifications", null=True, blank=True)
     status = models.CharField(choices=StatusChoice.choices, max_length=20, null=True, blank=True)  
     message = models.TextField()
