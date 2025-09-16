@@ -1,9 +1,6 @@
-from notifications.enums import NotificationType
 from task.serializers import TaskSerializer
 from task.permissions import CanAssignTask,CanViewTask,CanEditTask
 from task.models import Task
-from notifications.models import Notification
-from notifications.enums import NotificationType
 from notifications.services import NotificationService
 
 
@@ -45,6 +42,40 @@ class TaskListCreateView(APIView):
 
         else:
             tasks = Task.objects.none()
+
+         # --- Query params filtering ---
+        params = request.query_params
+
+        # Filter by status
+        status_param = params.get("status")
+        if status_param:
+            tasks = tasks.filter(status=status_param)
+    
+        # Filter by priority
+        priority_param = params.get("priority")
+        if priority_param:
+            tasks = tasks.filter(priority=priority_param)
+
+        # Filter by assignee (only useful for Admin/Manager)
+        assignee = params.get("assignee")
+        if assignee:
+            tasks = tasks.filter(assigned_to_id=assignee)
+
+        # Due before / after
+        due_before = params.get("due_before")
+        if due_before:
+            tasks = tasks.filter(due_date__lte=due_before)
+
+        due_after = params.get("due_after")
+        if due_after:
+            tasks = tasks.filter(due_date__gte=due_after)
+
+        # Search in title/description
+        search = params.get("search")
+        if search:
+            tasks = tasks.filter(
+                Q(title__icontains=search) | Q(description__icontains=search)
+            )
 
         serializer = TaskSerializer(tasks, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
