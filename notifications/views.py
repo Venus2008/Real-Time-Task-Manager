@@ -45,7 +45,7 @@ class ChatHistoryView(APIView):
         if task_id:
             notifications = Notification.objects.filter(
                 task_id=task_id,
-                event=Notification.NotificationType.GENERAL,
+                event=NotificationType.GENERAL,
                 user_id=user_id
             ).order_by("created_at")
 

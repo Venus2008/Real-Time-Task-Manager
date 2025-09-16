@@ -21,6 +21,6 @@ from notifications.views import NotificationListView,MarkReadView,ChatHistoryVie
 urlpatterns = [
     path("",NotificationListView.as_view(),name="notifications"),
     path('<int:pk>/',MarkReadView.as_view(),name="mark_read"),
-    path("chat/<int:task_id>/",ChatHistoryView.as_view(),name="chat_history"),
+    path("chat/<int:task_id>/<int:user_id>/",ChatHistoryView.as_view(),name="chat_history"),
     path("messages/", MessageView.as_view(), name="messages"),
     ]
