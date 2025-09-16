@@ -14,6 +14,7 @@ class Task(BaseModel,models.Model):
     is_archived = models.BooleanField(default=False)
 
     assigned_to=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.SET_NULL,null=True,blank=True,related_name='task_assigned')
+    due_date = models.DateField(null=True, blank=True)
 
     def __str__(self):
         return f"{self.title} ({self.status} - {self.priority})"
