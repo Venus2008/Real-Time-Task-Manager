@@ -19,6 +19,10 @@ class ChatConsumer(WebsocketConsumer):
         )
 
         self.accept()
+        self.send(text_data=json.dumps({
+            "event": "connected",
+            "message": f"Welcome to the {self.room_name} chat!"
+        }))
 
     def disconnect(self, close_code):
         # Leave the group
@@ -43,8 +47,9 @@ class ChatConsumer(WebsocketConsumer):
                 return
 
             # Save general chat to DB
+            receiver = User.objects.get(id=receiver_id)
             Notification.objects.create(
-                user=User.objects.get(id=receiver_id),
+                user=receiver,
                 sender=self.scope["user"],
                 event=NotificationType.GENERAL,
                 task_id=data.get("task_id"),  # optional
@@ -53,7 +58,7 @@ class ChatConsumer(WebsocketConsumer):
 
             # Broadcast
             async_to_sync(self.channel_layer.group_send)(
-                self.room_group_name,
+                f"notifications_{receiver.id}",
                 {
                     "type": "send_notification",
                     "event": "general",
@@ -74,4 +79,7 @@ class ChatConsumer(WebsocketConsumer):
         try:
             self.send(text_data=json.dumps(event))
         except Exception as e:
-            print(f"Error sending notification: {e}")
+            self.send(text_data=json.dumps({
+            "event": "error",
+            "message": f"Failed to send notification: {str(e)}"
+            }))

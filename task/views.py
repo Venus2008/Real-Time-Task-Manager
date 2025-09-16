@@ -14,10 +14,9 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.exceptions import PermissionDenied
-from channels.layers import get_channel_layer
-from asgiref.sync import async_to_sync
+from notifications.tasks import send_task_assigned_email,send_task_updated_email
 from django.db.models import Q
-from django.db import transaction
+
 
 
 # Admin/Manager : Create and vier tasks
@@ -59,6 +58,8 @@ class TaskListCreateView(APIView):
             CanAssignTask().validate_assignment(request.user, assignee)
 
             task = serializer.save(created_by=user)
+            if assignee and assignee.email:
+                send_task_assigned_email.delay(task.id, assignee.email)
 
             NotificationService.send(
                 user=assignee,
@@ -106,6 +107,13 @@ class TaskModifyView(APIView):
         if serializer.is_valid():
             old_assignee = task.assigned_to
             updated_task = serializer.save()
+
+            if updated_task.assigned_to:
+                send_task_updated_email.delay(updated_task.id, updated_task.assigned_to.email)
+
+    # Case 2: Assignee changed
+            if "assigned_to" in serializer.validated_data and updated_task.assigned_to != old_assignee:
+                send_task_assigned_email.delay(updated_task.id, updated_task.assigned_to.email)
 
             # If assignee changed → notify only the new assignee
             if updated_task.assigned_to != old_assignee:
