@@ -19,10 +19,3 @@ class Task(BaseModel,models.Model):
         return f"{self.title} ({self.status} - {self.priority})"
     
     
-class TaskUpdate(BaseModel,models.Model):
-    task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name="updates")
-    status = models.CharField(choices=StatusChoice.choices,max_length=20,null=True,blank=True)
-    comment = models.TextField(blank=True, null=True)
-
-    def __str__(self):
-        return f"Update for {self.task.title} by {self.updated_by.email}"

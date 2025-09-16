@@ -33,6 +33,7 @@ class User(AbstractUser,BaseModel):
     username=None
     name=models.CharField(max_length=100)
     email=models.EmailField(unique=True)
+    name=models.CharField(max_length=100)
     role=models.CharField(choices=ROLE_CHOICES,max_length=20,default='EMPLOYEE')
     
 

@@ -1,6 +1,9 @@
-import token
 from account.models import User
 from account.serializers import UserCreateSerializer,UserMeSerializer,SetPasswordSerializer,AdminSignupSerializer
+from account.utils import make_password_setup_link, decode_uid
+import token
+
+
 from django.contrib.auth import get_user_model
 from rest_framework import status
 from rest_framework.response import Response
@@ -9,19 +12,19 @@ from rest_framework_simplejwt.tokens import RefreshToken,TokenError
 from django.contrib.auth import authenticate
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
-from account.permissions import IsAdminOrManager,IsAdmin
-from .utils import make_password_setup_link, decode_uid
+from account.permissions import IsAdminOrManager
 User = get_user_model()
 from django.core.mail import send_mail
 from django.conf import settings
 from django.contrib.auth.tokens import default_token_generator
 from django.utils.http import urlsafe_base64_encode
 from django.utils.encoding import force_bytes
+from rest_framework.permissions import AllowAny
 
 
 
 
-class AddUserView(APIView):
+class CreateUserView(APIView):
     authentication_classes=[JWTAuthentication]
     permission_classes=[IsAdminOrManager]
 
@@ -107,7 +110,7 @@ class SetPasswordView(APIView):
 
 class AdminSignupView(APIView):
     authentication_classes = []  # No auth required for first admin signup
-    permission_classes = []      # Public for first time only
+    permission_classes = [AllowAny]      # Public for first time only
 
     def post(self, request):
         # Check if an admin already exists
@@ -144,7 +147,7 @@ class AdminSignupView(APIView):
 
 class LoginView(APIView):
     authentication_classes=[]
-    permission_classes=[]
+    permission_classes=[AllowAny]
 
     def post(self,request):
         email=request.data.get("email")

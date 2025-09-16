@@ -58,7 +58,7 @@ class CanEditTask(BasePermission):
     
     # - Admin can edit any task
     # - Manager can edit only tasks they created
-    # - Employees cannot edit tasks
+    # - Employees cannot edit task status of the task assigne to them only
     
 
     def has_object_permission(self, request, view, obj):
@@ -71,6 +71,20 @@ class CanEditTask(BasePermission):
         # Manager can edit only their own tasks
         if user.role == "MANAGER":
             return obj.created_by == user
+        
+        if user.role == "EMPLOYEE":
+            # 1. Make sure this task is assigned to the employee
+            if obj.assigned_to != user:
+                return False
 
-        # Employees cannot edit
+            # 2. Ensure only 'status' is being updated
+            if request.method in ("PUT", "PATCH"):
+                # check incoming data keys
+                allowed_fields = {"status"}
+                requested_fields = set(request.data.keys())
+                return requested_fields.issubset(allowed_fields)
+
         return False
+
+        
+        

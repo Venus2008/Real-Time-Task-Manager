@@ -1,62 +1,28 @@
-from task.serializers import TaskSerializer,TaskUpdateSerializer
+from notifications.enums import NotificationType
+from task.serializers import TaskSerializer
 from task.permissions import CanAssignTask,CanViewTask,CanEditTask
 from task.models import Task
-from django.db.models import Q
+from notifications.models import Notification
+from notifications.enums import NotificationType
+from notifications.services import NotificationService
 
+
+from django.shortcuts import get_object_or_404
 from rest_framework.views import APIView
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.exceptions import PermissionDenied
-
-
-
-
-# Manager/Emplyee : Share Updates on the tasks assigned  
-class TaskUpdateView(APIView):
-    authentication_classes = [JWTAuthentication]
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request, task_id):
-        # only allow updates for tasks assigned to this manager
-        try:
-            task = Task.objects.get(id=task_id, assigned_to=request.user)
-        except Task.DoesNotExist:
-            return Response(
-                {"detail": "Task not found or not assigned to you."},
-                status=status.HTTP_404_NOT_FOUND
-            )
-
-        serializer = TaskUpdateSerializer(data=request.data)
-        if serializer.is_valid():
-            task_update=serializer.save(updated_by=request.user, task=task)
-
-            if task_update.status:
-                task.status = task_update.status
-                task.save(update_fields=["status"])
-                
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    def get(self, request, task_id):
-        # fetch all updates for a task assigned to this manager
-        try:
-            task = Task.objects.get(id=task_id, assignee=request.user)
-        except Task.DoesNotExist:
-            return Response(
-                {"detail": "Task not found or not assigned to you."},
-                status=status.HTTP_404_NOT_FOUND
-            )
-
-        updates = task.updates.all().order_by("-created_at")
-        serializer = TaskUpdateSerializer(updates, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
+from django.db.models import Q
+from django.db import transaction
 
 
 # Admin/Manager : Create and vier tasks
 class TaskListCreateView(APIView):
+    
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
 
@@ -92,14 +58,22 @@ class TaskListCreateView(APIView):
             assignee = serializer.validated_data.get("assigned_to")
             CanAssignTask().validate_assignment(request.user, assignee)
 
-            serializer.save(created_by=user)
+            task = serializer.save(created_by=user)
+
+            NotificationService.send(
+                user=assignee,
+                event="task_assigned",
+                message=f"Task '{task.title}' assigned to you",
+                task=task,
+                created_by=request.user
+            )
             return Response(serializer.data, status=status.HTTP_201_CREATED)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 # Admin/Manager : Modify and Delete the task role based permissions
-class TaskDetailView(APIView):
+class TaskModifyView(APIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
 
@@ -116,17 +90,12 @@ class TaskDetailView(APIView):
         return task
 
     def get(self, request, pk):
-        task = self.get_object(pk, request.user)
-        if not task:
-            return Response({"detail": "Not authorized to view this task."}, status=status.HTTP_403_FORBIDDEN)
-
+        task = get_object_or_404(Task, pk=pk)
         serializer = TaskSerializer(task)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def put(self, request, pk):
-        task = self.get_object(pk, request.user)
-        if not task:
-            return Response({"detail": "Not authorized to edit this task."}, status=status.HTTP_403_FORBIDDEN)
+        task = get_object_or_404(Task, pk=pk)
         
         if not CanEditTask().has_object_permission(request, self, task):
             return Response(
@@ -135,17 +104,34 @@ class TaskDetailView(APIView):
         serializer = TaskSerializer(task, data=request.data, partial=True)
 
         if serializer.is_valid():
-            assignee = serializer.validated_data.get("assigned_to")
+            old_assignee = task.assigned_to
+            updated_task = serializer.save()
 
-            if assignee is not None:
-                CanAssignTask().validate_assignment(request.user, assignee)  # Check to whom the task is assigning is valid -  
-            serializer.save()                                               # as per rule or not while modifying
-                                                  
+            # If assignee changed → notify only the new assignee
+            if updated_task.assigned_to != old_assignee:
+                NotificationService.send(
+                    user=updated_task.assigned_to,
+                    event="task_reassigned",
+                    message=f"You have been assigned to task '{updated_task.title}'",
+                    task=updated_task,
+                    created_by=request.user
+                )
+            else:
+                # Otherwise → general update notification
+                NotificationService.send(
+                    user=updated_task.assigned_to,
+                    event="task_updated",
+                    message=f"Task '{updated_task.title}' has been updated.",
+                    task=updated_task,
+                    created_by=request.user
+                )
+
             return Response(serializer.data, status=status.HTTP_200_OK)
+
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, pk):
-        task = self.get_object(pk, request.user)
+        task = get_object_or_404(Task, pk=pk)
         if not task:
             return Response({"detail": "Not authorized to delete this task or Task does not exists."}, status=status.HTTP_403_FORBIDDEN)
 
@@ -154,7 +140,7 @@ class TaskDetailView(APIView):
         # Admin can hard delete any task
         if user.role == "ADMIN":
             task.delete()
-            return Response({"detail": "Task deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
+            return Response({"detail": "Task deleted successfully."}, status=status.HTTP_200_OK)
 
         # Manager can archive (not delete) their own tasks
         elif user.role == "MANAGER":

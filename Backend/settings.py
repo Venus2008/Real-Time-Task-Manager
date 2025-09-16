@@ -45,6 +45,8 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'account',
     'task',
+    "channels",
+    'notifications',
     'rest_framework_simplejwt.token_blacklist',
     
 ]
@@ -76,6 +78,7 @@ TEMPLATES = [
     },
 ]
 
+ASGI_APPLICATION = "Backend.asgi.application"
 WSGI_APPLICATION = 'Backend.wsgi.application'
 
 
@@ -125,6 +128,15 @@ AUTHENTICATION_BACKENDS = [
 ]
 
 
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [("127.0.0.1", 6379)],  # Your Redis server address and port
+        },
+    },
+}
+
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
 
@@ -160,6 +172,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
