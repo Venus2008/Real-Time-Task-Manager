@@ -16,7 +16,7 @@ app.conf.beat_schedule = {
     },
     "send-daily-inprogress-reminders": {
         "task": "notifications.tasks.send_inprogress_task_reminders",
-        "schedule": crontab(hour=16, minute=0),  # every day at 5:00 PM
+        "schedule": crontab(hour=16, minute=0),  # every day at 4:00 PM
     },
 
     "send_due_date_reminders": {

@@ -19,7 +19,7 @@ class NotificationListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        qs = Notification.objects.filter(user=request.user).order_by("-created_at")
+        qs = Notification.objects.filter(user=request.user).select_related("task", "user").order_by("-created_at")
         serializer = NotificationSerializer(qs, many=True)
         return Response(serializer.data)
 
