@@ -18,4 +18,9 @@ app.conf.beat_schedule = {
         "task": "notifications.tasks.send_inprogress_task_reminders",
         "schedule": crontab(hour=16, minute=0),  # every day at 5:00 PM
     },
+
+    "send_due_date_reminders": {
+        "task": "notifications.tasks.send_due_date_reminders",
+        "schedule": crontab(minute="*/15"),  # morning + evening
+    },
 }
