@@ -3,8 +3,10 @@ from django.core.mail import send_mail
 from django.conf import settings
 from task.models import Task
 from task.enums import StatusChoice
+
 from django.utils import timezone
 from datetime import timedelta
+
 
 
 @shared_task
@@ -57,6 +59,7 @@ def send_inprogress_task_reminders():
         send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [email],fail_silently=False)
 
 
+
 @shared_task
 def send_due_date_reminders():
     now = timezone.now()
@@ -85,3 +88,4 @@ def send_due_date_reminders():
             if diff_minutes in {120, 60, 30, 15}:  # 2h, 1h, 30m, 15m
                 message = f"Task '{task.title}' is due today! Deadline in {int(diff_minutes)} minutes."
                 send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [assignee_email])
+
