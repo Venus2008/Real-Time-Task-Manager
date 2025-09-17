@@ -28,7 +28,7 @@ class TaskListCreateView(APIView):
 
     def get(self, request):
         user = request.user
-        cache_key = f"task_list_{user.role}_{user.email}"
+        cache_key = f"task_list_{user.role}_{user.email}_{request.get_full_path()}"
 
         # Try cache first
         tasks_data = cache.get(cache_key)
@@ -70,6 +70,11 @@ class TaskListCreateView(APIView):
         priority_param = params.get("priority")
         if priority_param:
             tasks = tasks.filter(priority=priority_param)
+        
+        # Filter by assigner
+        assigner = params.get("assigner")
+        if assigner:
+            tasks = tasks.filter(created_by_id=assigner)
 
         # Filter by assignee (only useful for Admin/Manager)
         assignee = params.get("assignee")
@@ -184,13 +189,6 @@ class TaskModifyView(APIView):
             if updated_task.assigned_to:
                 cache.delete(f"task_list_{updated_task.assigned_to.role}_{updated_task.assigned_to.email}")
 
-
-            if updated_task.assigned_to:
-                send_task_updated_email.delay(updated_task.id, updated_task.assigned_to.email)
-
-    # Case 2: Assignee changed
-            if "assigned_to" in serializer.validated_data and updated_task.assigned_to != old_assignee:
-                send_task_assigned_email.delay(updated_task.id, updated_task.assigned_to.email)
 
             # If assignee changed → notify only the new assignee
             if updated_task.assigned_to != old_assignee:
