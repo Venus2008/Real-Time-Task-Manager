@@ -111,6 +111,16 @@ REST_FRAMEWORK = {
     ),
 }
 
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": "redis://127.0.0.1:6379/1",  # using DB 1 for caching
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        }
+    }
+}
+
 from datetime import timedelta
 
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://127.0.0.1:8000")

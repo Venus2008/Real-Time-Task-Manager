@@ -3,6 +3,7 @@ from task.permissions import CanAssignTask,CanViewTask,CanEditTask
 from task.models import Task
 from notifications.services import NotificationService
 from account.models import User
+from task.enums import StatusChoice 
 
 
 from django.shortcuts import get_object_or_404
@@ -13,7 +14,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.exceptions import PermissionDenied
 from notifications.tasks import send_task_assigned_email,send_task_updated_email
-from django.db.models import Q
+from django.db.models import Q,F
+from django.core.cache import cache
 from django.utils import timezone
 
 
@@ -25,22 +27,31 @@ class TaskListCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        user = request.user  
+        user = request.user
+        cache_key = f"task_list_{user.role}_{user.email}"
+
+        # Try cache first
+        tasks_data = cache.get(cache_key)
+        if tasks_data:
+            return Response(tasks_data, status=status.HTTP_200_OK)  
 
         if user.role == "ADMIN":
             tasks = Task.objects.all().order_by("-created_at")
+            print("Hit DB")
 
         elif user.role == "MANAGER":
             tasks = Task.objects.filter(
                 Q(created_by=user) | Q(assigned_to=user),
                 is_archived=False
             ).order_by("-created_at")
+            print("Hit DB")
 
         elif user.role == "EMPLOYEE":
             tasks = Task.objects.filter(
                 assigned_to=user,
                 is_archived=False
             ).order_by("-created_at")
+            print("Hit DB")
 
         else:
             tasks = Task.objects.none()
@@ -80,8 +91,11 @@ class TaskListCreateView(APIView):
             tasks = tasks.filter(
                 Q(title__icontains=search) | Q(description__icontains=search)
             )
+            print("Hit DB")
 
         serializer = TaskSerializer(tasks, many=True)
+        tasks_data = serializer.data
+        cache.set(cache_key, tasks_data, timeout=300)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def post(self, request):
@@ -127,8 +141,20 @@ class TaskModifyView(APIView):
         return task
 
     def get(self, request, pk):
+        cache_key = f"task_detail_{pk}_{request.user.email}"
+
+        # Try cache first
+        task_data = cache.get(cache_key)
+        if task_data:
+            return Response(task_data, status=status.HTTP_200_OK)
+        
+        # Else DB
         task = get_object_or_404(Task, pk=pk)
         serializer = TaskSerializer(task)
+        task_data = serializer.data
+
+        # Sotre in Cache
+        cache.set(cache_key, task_data, timeout=300)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def put(self, request, pk):
@@ -143,6 +169,21 @@ class TaskModifyView(APIView):
         if serializer.is_valid():
             old_assignee = task.assigned_to
             updated_task = serializer.save()
+
+            if updated_task.assigned_to:
+                send_task_updated_email.delay(updated_task.id, updated_task.assigned_to.email)
+
+    # Case 2: Assignee changed
+            if "assigned_to" in serializer.validated_data and updated_task.assigned_to != old_assignee:
+                send_task_assigned_email.delay(updated_task.id, updated_task.assigned_to.email)
+
+
+            # Invalidate relevant caches
+            cache.delete(f"task_detail_{pk}_{request.user.email}")
+            cache.delete(f"task_list_{request.user.role}_{request.user.email}")
+            if updated_task.assigned_to:
+                cache.delete(f"task_list_{updated_task.assigned_to.role}_{updated_task.assigned_to.email}")
+
 
             if updated_task.assigned_to:
                 send_task_updated_email.delay(updated_task.id, updated_task.assigned_to.email)
@@ -181,6 +222,12 @@ class TaskModifyView(APIView):
 
         user = request.user
 
+        # Invalidate caches
+        cache.delete(f"task_detail_{pk}_{user.email}")
+        cache.delete(f"task_list_{user.role}_{user.email}")
+        if task.assigned_to:
+            cache.delete(f"task_list_{task.assigned_to.role}_{task.assigned_to.email}")
+
         # Admin can hard delete any task
         if user.role == "ADMIN":
             task.delete()
@@ -196,6 +243,7 @@ class TaskModifyView(APIView):
         # Employees cannot delete/archive
         return Response({"detail": "Employees cannot delete or archive tasks."},status=status.HTTP_403_FORBIDDEN)
 
+
 # Analysis Report of Employee and Manager Tasks
 class AnalyticsView(APIView):
     permission_classes = [IsAuthenticated]
@@ -208,21 +256,31 @@ class AnalyticsView(APIView):
         target_user_id = params.get("user_id")
 
         if user.role == "EMPLOYEE":
+            if target_user_id and int(target_user_id) != user.id:
+                return Response({"detail": "Employees can only view their own reports"}, status=403)
             target_user = user
+            
         elif user.role == "MANAGER":
             if not target_user_id:
-                return Response({"detail": "Manager must specify an employee ID"}, status=400)
-            try:
-                target_user = User.objects.get(id=target_user_id, created_by=user)
-            except User.DoesNotExist:
-                return Response({"detail": "You can only view reports of your employees"}, status=403)
+                # No ID → see their own report
+                target_user = user
+            else:
+                try:
+                    target_user = User.objects.get(id=target_user_id)
+                    # Manager can see employee reports OR their own report
+                    if target_user.role != "EMPLOYEE" and target_user.id != user.id:
+                        return Response({"detail": "Manager can only view reports of employees or themselves"}, status=403)
+                except User.DoesNotExist:
+                    return Response({"detail": "User not found"}, status=404)
+
         elif user.role == "ADMIN":
-            if not target_user_id:
-                return Response({"detail": "Admin must specify a user ID"}, status=400)
+            if int(target_user_id) == user.id or not target_user_id:
+                return Response({"detail": "Admin must specify a ID of some Employee"}, status=400)
             try:
                 target_user = User.objects.get(id=target_user_id)
             except User.DoesNotExist:
                 return Response({"detail": "User not found"}, status=404)
+
         else:
             return Response({"detail": "Unauthorized role"}, status=403)
 
@@ -275,3 +333,4 @@ class AnalyticsView(APIView):
 
         cache.set(cache_key, data, timeout=300)
         return Response(data)
+    

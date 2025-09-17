@@ -5,6 +5,8 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.shortcuts import get_object_or_404
+from django.core.cache import cache
+
 
 
 from notifications.services import NotificationService
@@ -20,7 +22,19 @@ class NotificationListView(APIView):
 
     def get(self, request):
         qs = Notification.objects.filter(user=request.user).select_related("task", "user").order_by("-created_at")
+        cache_key = f"notifications_{request.user.email}"
+
+        # Try cache first
+        data = cache.get(cache_key)
+        if data:
+            return Response(data)
+        
+        qs = Notification.objects.filter(user=request.user).order_by("-created_at")
         serializer = NotificationSerializer(qs, many=True)
+        data = serializer.data
+
+        cache.set(cache_key, data, timeout=300)  # Cache for 5 minutes
+
         return Response(serializer.data)
 
 class MarkReadView(APIView):
@@ -39,9 +53,15 @@ class ChatHistoryView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, task_id,user_id):
+        cache_key = f"chat_history_{task_id}_{user_id}"
         """
         Fetch chat messages related to a task or between users.
         """
+    # Try cache first
+        data = cache.get(cache_key)
+        if data:
+            return Response(data)
+
         if task_id:
             notifications = Notification.objects.filter(
                 task_id=task_id,
@@ -49,7 +69,11 @@ class ChatHistoryView(APIView):
                 user_id=user_id
             ).order_by("created_at")
 
+        
+
         serializer = NotificationSerializer(notifications, many=True)
+        data=serializer.data
+        cache.set(cache_key, data, timeout=300)  # Cache for 5 minutes
         return Response(serializer.data)
 
 class MessageView(APIView):
