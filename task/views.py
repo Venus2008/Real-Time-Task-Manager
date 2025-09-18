@@ -1,3 +1,4 @@
+import task
 from task.serializers import TaskSerializer
 from task.permissions import CanAssignTask,CanViewTask,CanEditTask
 from task.models import Task
@@ -17,6 +18,8 @@ from notifications.tasks import send_task_assigned_email,send_task_updated_email
 from django.db.models import Q,F
 from django.core.cache import cache
 from django.utils import timezone
+from django.conf import settings
+from django.core.mail import send_mail
 
 
 
@@ -226,9 +229,25 @@ class TaskModifyView(APIView):
         if task.assigned_to:
             cache.delete(f"task_list_{task.assigned_to.role}_{task.assigned_to.email}")
 
+        assignee = task.assigned_to
+        title = task.title
+
         # Admin can hard delete any task
         if user.role == "ADMIN":
             task.delete()
+            # Notify assignee if exists
+            if assignee and assignee.email:
+                subject = f"Task Deleted: {title}"
+                message = f"The task '{title}' assigned to you has been deleted by {user.name}."
+                send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [assignee.email])
+
+                NotificationService.send(
+                    user=assignee,
+                    event="task_deleted",
+                    message=f"Task '{title}' has been deleted by {user.name}.",
+                    task=None,
+                    created_by=request.user
+                )
             return Response({"detail": "Task deleted successfully."}, status=status.HTTP_200_OK)
 
         # Manager can archive (not delete) their own tasks
@@ -237,7 +256,24 @@ class TaskModifyView(APIView):
                 return Response({"detail": "Managers can only archive their own tasks."},status=status.HTTP_403_FORBIDDEN)
             task.is_archived = True
             task.save()
+
+            # Notify assignee if exists
+            if task.assigned_to and task.assigned_to.email:
+                subject = f"Task Archived: {task.title}"
+                message = f"The task '{task.title}' assigned to you has been archived by {user.name}."
+                send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [task.assigned_to.email])
+
+                NotificationService.send(
+                    user=task.assigned_to,
+                    event="task_archived",
+                    message=f"Task '{task.title}' has been archived by {user.name}.",
+                    task=task,
+                    created_by=request.user
+                )
+
             return Response({"detail": "Task archived successfully."}, status=status.HTTP_200_OK)
+
+            
         # Employees cannot delete/archive
         return Response({"detail": "Employees cannot delete or archive tasks."},status=status.HTTP_403_FORBIDDEN)
 
