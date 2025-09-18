@@ -68,45 +68,20 @@ class NotificationListView(APIView):
 class MarkReadView(APIView):
     permission_classes = [IsAuthenticated]
 
-    def patch(self, request, pk):
-        try:
-            n = Notification.objects.get(pk=pk, user=request.user)
-        except Notification.DoesNotExist:
-            return Response({"detail": "Not found"}, status=status.HTTP_404_NOT_FOUND)
-        n.is_read = True
-        n.save(update_fields=["is_read"])
-        return Response({"id": n.id, "is_read": n.is_read},status=status.HTTP_200_OK)
+    def patch(self, request):
+        task_id = request.data.get("task_id")
+        event = request.data.get("event")
 
-
-
-
-class ChatHistoryView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request, task_id,user_id):
-        cache_key = f"chat_history_{task_id}_{user_id}"
-        """
-        Fetch chat messages related to a task or between users.
-        """
-    # Try cache first
-        data = cache.get(cache_key)
-        if data:
-            return Response(data)
+        qs = Notification.objects.filter(user=request.user, is_read=False)
 
         if task_id:
-            notifications = Notification.objects.filter(
-                task_id=task_id,
-                event=NotificationType.GENERAL,
-                user_id=user_id
-            ).order_by("created_at")
+            qs = qs.filter(task_id=task_id)
+        if event:
+            qs = qs.filter(event=event)
 
-        
+        updated = qs.update(is_read=True)
 
-        serializer = NotificationSerializer(notifications, many=True)
-        data=serializer.data
-        cache.set(cache_key, data, timeout=300)  # Cache for 5 minutes
-        return Response(serializer.data)
-
+        return Response({"detail": f"{updated} notifications marked as read"}, status=200)
 
 
 
