@@ -6,6 +6,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.shortcuts import get_object_or_404
 from django.core.cache import cache
+from urllib.parse import urlencode
+from django.db.models import Q
 
 
 
@@ -21,8 +23,11 @@ class NotificationListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        qs = Notification.objects.filter(user=request.user).select_related("task", "user").order_by("-created_at")
-        cache_key = f"notifications_{request.user.email}"
+
+        params = request.query_params
+        query_string = urlencode(params, doseq=True)
+
+        cache_key = f"notifications_{request.user.email}_{query_string}"
 
         # Try cache first
         data = cache.get(cache_key)
@@ -30,12 +35,35 @@ class NotificationListView(APIView):
             return Response(data)
         
         qs = Notification.objects.filter(user=request.user).order_by("-created_at")
+
+        # --- Filters ---
+        title = params.get("title")
+        if title:
+            qs = qs.filter(task__title__icontains=title)
+
+        event = params.get("event")
+        if event:
+            qs = qs.filter(event__iexact=event)  # change field name if needed
+
+
+        # Optional search across multiple fields
+        search = params.get("search")
+        if search:
+            qs = qs.filter(
+                Q(task__title__icontains=search) |
+                Q(event_type__icontains=search)
+            )
+
+
         serializer = NotificationSerializer(qs, many=True)
         data = serializer.data
 
         cache.set(cache_key, data, timeout=300)  # Cache for 5 minutes
 
         return Response(serializer.data)
+
+
+
 
 class MarkReadView(APIView):
     permission_classes = [IsAuthenticated]
@@ -48,6 +76,9 @@ class MarkReadView(APIView):
         n.is_read = True
         n.save(update_fields=["is_read"])
         return Response({"id": n.id, "is_read": n.is_read},status=status.HTTP_200_OK)
+
+
+
 
 class ChatHistoryView(APIView):
     permission_classes = [IsAuthenticated]
@@ -75,6 +106,9 @@ class ChatHistoryView(APIView):
         data=serializer.data
         cache.set(cache_key, data, timeout=300)  # Cache for 5 minutes
         return Response(serializer.data)
+
+
+
 
 class MessageView(APIView):
     authentication_classes = [JWTAuthentication]
