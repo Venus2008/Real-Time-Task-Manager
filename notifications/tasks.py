@@ -64,7 +64,7 @@ def send_inprogress_task_reminders():
 def send_due_date_reminders():
     now = timezone.now()
     today = now.date()
-    tasks = Task.objects.filter(due_date__lte=today + timezone.timedelta(days=1), status = StatusChoice.IN_PROGRESS, is_archived=False)
+    tasks = Task.objects.filter(due_date__lte=today + timezone.timedelta(days=1), status__in = [StatusChoice.IN_PROGRESS,StatusChoice.PENDING], is_archived=False)
     for task in tasks:
         if not task.assigned_to:
             continue
@@ -82,7 +82,8 @@ def send_due_date_reminders():
         # --- On due date ---
         if today == due_date:
             # Actually calculate exact time difference in minutes
-            due_datetime = timezone.make_aware(timezone.datetime.combine(due_date, timezone.datetime.max.time()))
+            due_time = timezone.datetime.strptime("18:00", "%H:%M").time()
+            due_datetime = timezone.make_aware(timezone.datetime.combine(due_date, due_time))
             diff_minutes = int((due_datetime - now).total_seconds() / 60)
 
             if diff_minutes in {120, 60, 30, 15}:  # 2h, 1h, 30m, 15m
