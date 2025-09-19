@@ -74,6 +74,8 @@ def send_task_assigned_email(task_id, assignee_email):
         html_message=html_message
     )
 
+
+
 @shared_task
 def send_task_updated_email(task_id, assignee_email):
     from task.models import Task
@@ -146,6 +148,8 @@ def send_task_updated_email(task_id, assignee_email):
         html_message=html_message
     )
 
+
+
 @shared_task
 def send_pending_task_reminders():
     users_with_tasks = {}
@@ -202,6 +206,7 @@ def send_pending_task_reminders():
             fail_silently=False,
             html_message=html_message
         )
+
 
 
 @shared_task
@@ -326,7 +331,7 @@ def send_due_date_reminders():
 
         # --- On due date ---
         if today == due_date:
-            due_time = timezone.datetime.strptime("18:00", "%H:%M").time()
+            due_time = timezone.datetime.strptime("10:00", "%H:%M").time()
             due_datetime = timezone.make_aware(timezone.datetime.combine(due_date, due_time))
             diff_minutes = int((due_datetime - now).total_seconds() / 60)
 

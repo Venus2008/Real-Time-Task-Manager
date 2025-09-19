@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<h2>Dashboard</h2>
+
+<!-- Display counts directly from context passed by the view -->
+<p>Managers: <span id="managers_count">{{ managers }}</span></p>
+<p>Employees: <span id="employees_count">{{ employees }}</span></p>
+<!-- Logout button -->
+<button id="logoutBtn">Logout</button>
+<script>
+// Simple frontend logout
+function logout() {
+    // Remove any stored tokens (if using JWT in localStorage)
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("refresh_token");
+
+    // Redirect to login page
+    window.location.href = "/ui/login/";
+}
+
+// Attach logout function to button
+document.getElementById("logoutBtn").addEventListener("click", logout);
+</script>
+{% endblock %}

@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     "channels",
     'notifications',
     'rest_framework_simplejwt.token_blacklist',
+    'uis',
     
 ]
 
@@ -70,7 +71,7 @@ ROOT_URLCONF = 'Backend.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / "templates"],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -107,6 +108,7 @@ REST_FRAMEWORK = {
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ),
     "DEFAULT_PERMISSION_CLASSES": (
+        "rest_framework.authentication.SessionAuthentication",
         "rest_framework.permissions.IsAuthenticated",
     ),
 }
@@ -214,3 +216,6 @@ CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = "Asia/Kolkata"
 CELERY_ENABLE_UTC = False
 
+LOGIN_URL = "/ui/login/"
+LOGIN_REDIRECT_URL = "/ui/dashboard/"
+LOGOUT_REDIRECT_URL = "/ui/login/"
