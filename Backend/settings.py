@@ -52,7 +52,8 @@ INSTALLED_APPS = [
     'notifications',
     'rest_framework_simplejwt.token_blacklist',
     'uis',
-    
+    'django_celery_beat',
+
 ]
 
 MIDDLEWARE = [

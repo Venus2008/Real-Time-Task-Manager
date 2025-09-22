@@ -24,3 +24,5 @@ app.conf.beat_schedule = {
         "schedule": crontab(minute="*/15"),  # morning + evening
     },
 }
+
+app.conf.beat_scheduler = "django_celery_beat.schedulers:DatabaseScheduler"

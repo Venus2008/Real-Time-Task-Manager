@@ -130,6 +130,7 @@ class TaskListCreateView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+
 # Admin/Manager : Modify and Delete the task role based permissions
 class TaskModifyView(APIView):
     authentication_classes = [JWTAuthentication]
