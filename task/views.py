@@ -279,6 +279,7 @@ class TaskModifyView(APIView):
         return Response({"detail": "Employees cannot delete or archive tasks."},status=status.HTTP_403_FORBIDDEN)
 
 
+
 # Analysis Report of Employee and Manager Tasks
 class AnalyticsView(APIView):
     permission_classes = [IsAuthenticated]
