@@ -5,6 +5,7 @@ from notifications.models import Notification
 from django.contrib.auth import get_user_model
 User = get_user_model()
 from notifications.enums import NotificationType
+from django.core.cache import cache
 
 class ChatConsumer(WebsocketConsumer):
     def connect(self):
@@ -39,12 +40,15 @@ class ChatConsumer(WebsocketConsumer):
             receiver_id = data.get("receiver_id")
             message = data.get("message")
 
+            # Prevent sending message to self
             if not receiver_id or int(receiver_id) == self.scope["user"].id:  # 🚫 block self-message
                 self.send(text_data=json.dumps({
                     "event": "error",
                     "message": "You cannot send a message to yourself."
                 }))
                 return
+            
+            receiver = User.objects.get(id=receiver_id)
 
             # Save general chat to DB
             receiver = User.objects.get(id=receiver_id)
@@ -56,7 +60,12 @@ class ChatConsumer(WebsocketConsumer):
                 message=message,
             )
 
-            # Broadcast
+            # Invalidate related caches
+            cache.delete(f"notifications_{receiver.email}")  # receiver's notifications
+            if data.get("task_id"):
+                cache.delete(f"chat_history_{data['task_id']}_{receiver.id}")  # chat history
+
+            # Broadcast to group
             async_to_sync(self.channel_layer.group_send)(
                 f"notifications_{receiver.id}",
                 {

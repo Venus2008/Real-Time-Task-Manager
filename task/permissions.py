@@ -54,6 +54,7 @@ class CanViewTask(BasePermission):
          return None
 
 
+
 class CanEditTask(BasePermission):
     
     # - Admin can edit any task

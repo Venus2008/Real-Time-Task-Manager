@@ -15,10 +15,8 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.urls import path
-from task.views import TaskListCreateView,TaskModifyView,AnalyticsView
-
+from uis.views import login_page,dashboard_view
 urlpatterns = [
-   path("",TaskListCreateView.as_view(),name="task-list-create"),
-   path("<int:pk>/",TaskModifyView.as_view(),name="task-detail"),
-   path("analytics/",AnalyticsView.as_view(),name="analytics"),
+    path("login/", login_page, name="uis-login"),
+    path("dashboard/", dashboard_view, name="uis-dashboard"),
 ]
